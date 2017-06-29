@@ -26,13 +26,17 @@ on_match(int strnum, int textpos, TextAndPatterns const *tap)
     puts(text.ptr);
     for(int i = 0; i < text.len; i++)
     {
-        if(i == textpos)
+        if(i == (textpos - pattv[strnum].len))
+        {
+            putchar('B');
+        }
+        else if(i == textpos)
         {
             putchar('E');
         }
-        else if(i == (textpos - pattv[strnum].len))
+        else if((textpos - pattv[strnum].len) < i && i < textpos)
         {
-            putchar('B');
+            putchar('-');
         }
         else
         {
