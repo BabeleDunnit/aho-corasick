@@ -1,17 +1,45 @@
 
-// gcc acism_banana_test.c -o acism_banana_test libacism.a
+// gcc acism_test.c -o acism_test libacism.a
 
 #include "msutil.h"
 #include <assert.h>
 #include "acism.h"
 
+typedef struct tap
+{
+    MEMREF text;
+    MEMREF* patterns;
+}
+TextAndPatterns;
+
 static int actual = 0;
 static int
-on_match(int strnum, int textpos, MEMREF const *pattv)
+on_match(int strnum, int textpos, TextAndPatterns const *tap)
 {
-    (void)strnum, (void)textpos, (void)pattv;
+    // (void)strnum, (void)textpos, (void)pattv;
+    MEMREF text = tap->text;
+    MEMREF* pattv = tap->patterns;
+
+    // note: textpos is the position of the END of the match
     ++actual;
     printf("%9d %7d    '%.*s'\n", textpos, strnum, (int)pattv[strnum].len, pattv[strnum].ptr);
+    puts(text.ptr);
+    for(int i = 0; i < text.len; i++)
+    {
+        if(i == textpos)
+        {
+            putchar('E');
+        }
+        else if(i == (textpos - pattv[strnum].len))
+        {
+            putchar('B');
+        }
+        else
+        {
+            putchar(' ');
+        }
+    }
+    puts("");
     return 0;
 }
 
@@ -25,7 +53,7 @@ void test_AC(const char* id, const char* text, MEMREF* patterns, int patterns_co
     acism_dump(ac, PS_STATS, stdout, patterns);
     printf("%s AC patterns:\n", id);
     for(int i = 0; i < patterns_count; i++)
-        printf("\t%s\n", patterns[i].ptr);
+        printf("\t%d %s\n", i, patterns[i].ptr);
 
     puts("");
     MEMREF t =
@@ -33,12 +61,17 @@ void test_AC(const char* id, const char* text, MEMREF* patterns, int patterns_co
         text, strlen(text)
     };
 
-    printf("Now running on string '%s'\n", text);
+    TextAndPatterns textAndPatterns;
+    textAndPatterns.text = t;
+    textAndPatterns.patterns = patterns;
 
-    printf("%s AC run:\n", id);
+    printf("Now running on string '%s'\n", text);
+    puts("");
+
+    // printf("%s AC run:\n", id);
     int state = 0;
-    printf("%9s %7s    Pattern\n", "Pos", "Id");
-    while(acism_more(ac, t, (ACISM_ACTION*)on_match, patterns, &state));
+    printf("%9s %7s    Pattern\n", "EndPos", "Id");
+    while(acism_more(ac, t, (ACISM_ACTION*)on_match, &textAndPatterns, &state));
     acism_destroy(ac);
     puts("");
 }
