@@ -7,6 +7,8 @@
 #include <string>
 #include <iostream>
 #include <iomanip>
+#include <fstream>
+#include <chrono>
 using namespace std;
 
 #include "msutil.h"
@@ -29,6 +31,7 @@ struct Test
 
 struct ACData
 {
+    ACISM* ac = nullptr;
     MEMREF text;
     MEMREF* patterns = nullptr;
     map<string, int> matches;
@@ -36,7 +39,7 @@ struct ACData
 
 // static int actual = 0;
 static int
-on_match(int strnum, int textpos, ACData* acData)
+on_match_acData(int strnum, int textpos, ACData* acData)
 {
     MEMREF text = acData->text;
     MEMREF* pattv = acData->patterns;
@@ -71,8 +74,52 @@ on_match(int strnum, int textpos, ACData* acData)
     return 0;
 }
 
-void testAC(const Test& test)
+static int actual = 0;
+static int
+on_match_patterns(int strnum, int textpos, MEMREF const *pattv)
 {
+    (void)strnum, (void)textpos, (void)pattv;
+    ++actual;
+    printf("%9d %7d '%.*s'\n", textpos, strnum, (int)pattv[strnum].len, pattv[strnum].ptr);
+    return 0;
+}
+
+int BuildAC(const Test& test, ACData& acData)
+{
+    cout << "------------AC Creation ---------------------------------------" << endl;
+    // create the patterns array
+    int patternsCount = 0;
+    MEMREF* patterns = new MEMREF[test.patternsAndResults.size()];
+    for(int i = 0; i < test.patternsAndResults.size(); i++)
+    {
+        // if the expected result is 0, I must NOT add the pattern..
+        if(test.patternsAndResults[i].count > 0)
+        {
+            patterns[patternsCount].ptr = test.patternsAndResults[i].pattern.c_str();
+            patterns[patternsCount].len = test.patternsAndResults[i].pattern.length();
+            patternsCount++;
+        }
+    }
+
+    // build the AC:
+    // ACISM* ac = acism_create(patterns, patternsCount);
+    acData.ac = acism_create(patterns, patternsCount);
+    assert(acData.ac);
+    // acism_dump(acData.ac, PS_STATS, stdout, patterns);
+    cout << test.id << " AC patterns:" << endl;
+    for(int i = 0; i < patternsCount; i++)
+        cout << setw(10) << i << setw(15) << patterns[i].ptr << endl;
+
+    acData.patterns = patterns;
+    // no! the patterns are NOT copied, must exist for the whole AC existence
+    // delete[] acData.patterns;
+
+    cout << "----------- AC Creation End -----------------------------------" << endl;
+}
+
+int TestAC(const Test& test)
+{
+    /*
     // create the patterns array
     int patternsCount = 0;
     MEMREF* patterns = new MEMREF[test.patternsAndResults.size()];
@@ -103,6 +150,8 @@ void testAC(const Test& test)
     cout << test.id << " AC patterns:" << endl;
     for(int i = 0; i < patternsCount; i++)
         cout << setw(10) << i << setw(15) << patterns[i].ptr << endl;
+*/
+
 
     // build the memref text to scan
     puts("");
@@ -113,39 +162,50 @@ void testAC(const Test& test)
 
     ACData acData;
     acData.text = t;
-    acData.patterns = patterns;
+    // acData.patterns = patterns;
 
-    cout << "Now running on string <" << acData.text.ptr << ">" << endl;
+    BuildAC(test, acData);
+
+    cout << "----------- Testing " << test.id << " -------------------------" << endl << endl;
+    cout << "Scanning string: <" << test.textToScan << ">" << endl;
+    cout << "Expected results: " << endl;
+    for(int i = 0; i < test.patternsAndResults.size(); i++)
+    {
+        cout << setw(15) << test.patternsAndResults[i].pattern << ": " <<  setw(5) << test.patternsAndResults[i].count << endl;
+    }
+
     puts("");
 
     int state = 0;
     cout << setw(15) << "EndPos" << setw(15) << "Id" << setw(15) << "Pattern" << endl;
-    while(acism_more(ac, t, (ACISM_ACTION*)on_match, &acData, &state));
-    acism_destroy(ac);
+    while(acism_more(acData.ac, t, (ACISM_ACTION*)on_match_acData, &acData, &state));
+    acism_destroy(acData.ac);
     puts("");
 
     // check test results
     int errorsCount = 0;
-    for(int i = 0; i < patternsCount; i++)
+    for(int i = 0; i < test.patternsAndResults.size(); i++)
     {
         string pattern = test.patternsAndResults[i].pattern;
         int expectedMatches = test.patternsAndResults[i].count;
         int realMatches = acData.matches[pattern];
         if(expectedMatches != realMatches)
         {
-            cout << "Mismatch on pattern <" << pattern << ">: expected: " << expectedMatches << ", real: " << realMatches << endl;
+            cout << "Mismatch on pattern <" << pattern << ">: expected: " << expectedMatches << ", matched: " << realMatches << endl;
             errorsCount++;
         }
     }
 
-    delete[] patterns;
+    delete[] acData.patterns;
 
-    assert(!errorsCount);
+    return errorsCount;
 }
 
-int
-main(int argc, char **argv)
+int MatchTests()
 {
+
+    int errorsCount = 0;
+
 // this is strange.
 // run on string "bananas", will find 1 "ana", 2 "na", 1 "banana" and NO "nana".
 // is this a bug or it's just me which do not know Aho-Corasick well enough?
@@ -163,8 +223,7 @@ main(int argc, char **argv)
         {"ana", 2},
         {"na", 2},
     };
-    testAC(test);
-
+    errorsCount += TestAC(test);
 
 // this works as expected.
 // run on string "bananas", will find 2 "na", 1 "banana" and 1 "nana".
@@ -177,7 +236,7 @@ main(int argc, char **argv)
         {"ana", 0},
         {"na", 2},
     };
-    testAC(test);
+    errorsCount += TestAC(test);
 
 // this will fail
 
@@ -189,7 +248,125 @@ main(int argc, char **argv)
         {"/2.", 2},
         {"Firefox/2.0", 1},
     };
-    testAC(test);
+    errorsCount += TestAC(test);
 
-    return 0;
+    return errorsCount;
+}
+
+// ----------------------------- valgrind problem
+const vector<string> AC_PATTERNS =
+{
+    "midp",
+    "mobile",
+    "android",
+    "samsung",
+    "nokia",
+    "up.browser",
+    "phone",
+    "opera mini",
+    "opera mobi",
+    "brew",
+    "sonyericsson",
+    "blackberry",
+    "netfront",
+    "uc browser",
+    "symbian",
+    "j2me",
+    "wap2.",
+    "up.link",
+    " arm;",
+    "windows ce",
+    "vodafone",
+    "ucweb",
+    "zte-",
+    "ipad;",
+    "docomo",
+    "armv",
+    "maemo",
+    "palm",
+    "bolt",
+    "fennec",
+    "wireless",
+    "adr-",
+    "htc",
+    "; xbox",
+    "nintendo",
+    "zunewp7",
+    "skyfire",
+    "silk",
+    "untrusted",
+    "lgtelecom",
+    " gt-",
+    "ventana",
+    "tizen",
+};
+
+int TestUAsFile(const vector<string>& patternsVector)
+{
+
+
+    cout << "------------AC Creation ---------------------------------------" << endl;
+    // create the patterns array
+    int patternsCount = patternsVector.size();
+    MEMREF* patterns = new MEMREF[patternsCount];
+    for(int i = 0; i < patternsCount; i++)
+    {
+        patterns[i].ptr = patternsVector[i].c_str();
+        patterns[i].len = patternsVector[i].length();
+    }
+
+    // build the AC:
+    ACISM* ac = acism_create(patterns, patternsCount);
+    assert(ac);
+    // acism_dump(ac, PS_STATS, stdout, patterns);
+    cout << "AC patterns:" << endl;
+    for(int i = 0; i < patternsCount; i++)
+        cout << setw(10) << i << setw(15) << patterns[i].ptr << endl;
+
+    cout << "----------- AC Creation End -----------------------------------" << endl;
+
+
+    string realTrafficDataUAFile = "ua-bench-real-traffic-data-small.txt";
+    ifstream agentsFile(realTrafficDataUAFile, ios::binary);
+    if(!agentsFile)
+    {
+        cout << "Cannot find " << realTrafficDataUAFile << " UA file";
+    }
+
+
+    int lineCount = 0;
+    string line;
+    while (getline(agentsFile, line) /* && lineCount < 100 */)
+    {
+        const char* s = line.c_str();
+        auto start = std::chrono::steady_clock::now();
+        // stopwatches[0].result = cppAC.containsAny(s);
+        // cout << line << endl;
+        MEMREF t =
+        {
+            line.c_str(), line.length()
+        };
+
+        int state = 0;
+        // cout << setw(15) << "EndPos" << setw(15) << "Id" << setw(15) << "Pattern" << endl;
+        // cout << line << endl;
+        while(acism_more(ac, t, (ACISM_ACTION*)on_match_patterns, patterns, &state));
+
+        auto elapsed = std::chrono::steady_clock::now() - start;
+        // stopwatches[0].accumulator += elapsed;
+        ++lineCount;
+    }
+
+    cout << "Read " << lineCount << " UAs" << endl;
+
+    acism_destroy(ac);
+    delete[] patterns;
+
+}
+
+
+int main(int argc, char **argv)
+{
+    // assert(MatchTests() == 0);
+    TestUAsFile(AC_PATTERNS);
 }
