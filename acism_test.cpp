@@ -12,28 +12,17 @@ using namespace std;
 #include "msutil.h"
 #include "acism.h"
 
-/*
-struct Test
-{
-    string id;
-    MEMREF text;
-    MEMREF* patterns = nullptr;
-    int patternsCount = 0;
-    map<string, int> expectedResults;
-};
-*/
-
 struct Test
 {
     string id;
     string textToScan;
+
     struct PatternAndCount
     {
         string pattern;
         int count;
     };
 
-    // map<string, int> patternsAndResults;
     vector<PatternAndCount> patternsAndResults;
 };
 
@@ -49,13 +38,10 @@ struct ACData
 static int
 on_match(int strnum, int textpos, ACData* acData)
 {
-    // (void)strnum, (void)textpos, (void)pattv;
     MEMREF text = acData->text;
     MEMREF* pattv = acData->patterns;
 
     // note: textpos is the position of the END of the match
-    // ++actual;
-    // printf("%9d %7d    '%.*s'\n", textpos, strnum, (int)pattv[strnum].len, pattv[strnum].ptr);
     cout << string(45, '.') << endl;
     cout << setw(15) << textpos << setw(15) << strnum << setw(15) << pattv[strnum].ptr << endl;
     puts(text.ptr);
@@ -84,40 +70,6 @@ on_match(int strnum, int textpos, ACData* acData)
 
     return 0;
 }
-
-/*
-void test_AC(const char* id, const char* text, MEMREF* patterns, int patterns_count)
-{
-    ACISM* ac = acism_create(patterns, patterns_count);
-    assert(ac);
-    printf("-- Testing %s ------------------\n\n", id);
-    printf("%s AC dump: ", id);
-    acism_dump(ac, PS_STATS, stdout, patterns);
-    printf("%s AC patterns:\n", id);
-    for(int i = 0; i < patterns_count; i++)
-        printf("\t%d %s\n", i, patterns[i].ptr);
-
-    puts("");
-    MEMREF t =
-    {
-        text, strlen(text)
-    };
-
-    Test test;
-    test.text = t;
-    test.patterns = patterns;
-
-    printf("Now running on string '%s'\n", text);
-    puts("");
-
-    // printf("%s AC run:\n", id);
-    int state = 0;
-    printf("%9s %7s    Pattern\n", "EndPos", "Id");
-    while(acism_more(ac, t, (ACISM_ACTION*)on_match, &test, &state));
-    acism_destroy(ac);
-    puts("");
-}
-*/
 
 void testAC(const Test& test)
 {
@@ -185,61 +137,29 @@ main(int argc, char **argv)
 // this is strange.
 // run on string "bananas", will find 1 "ana", 2 "na", 1 "banana" and NO "nana".
 // is this a bug or it's just me which do not know Aho-Corasick well enough?
+// NOTE: fixed by elimination of prune-backlinks
 
-/*
-    const int uno_patterns_count = 4;
-    MEMREF uno_patterns[uno_patterns_count] =
-    {
-        { "banana", strlen("banana")},
-        { "nana", strlen("nana")},
-        { "ana", strlen("ana")},
-        { "na", strlen("na")},
-    };
-*/
-
-    // vector<string> uno_patterns =
-
-/*
-    map<string, int> unoPatternsAndResults =
+    Test test;
+    test.id = "uno";
+    test.textToScan = "bananas";
+    // uno_test.patterns = uno_patterns;
+    // uno_test.patternsAndResults = unoPatternsAndResults;
+    test.patternsAndResults =
     {
         {"banana", 1},
         {"nana", 1},
         {"ana", 2},
         {"na", 2},
     };
-*/
 
-    Test uno_test;
-    uno_test.id = "uno";
-    uno_test.textToScan = "bananas";
-    // uno_test.patterns = uno_patterns;
-    // uno_test.patternsAndResults = unoPatternsAndResults;
-    uno_test.patternsAndResults =
-    {
-        {"banana", 1},
-        {"nana", 2},
-        {"ana", 2},
-        {"na", 2},
-    };
-
-    // test_AC("uno", "bananas", uno_patterns, uno_patterns_count);
-
-    testAC(uno_test);
+    testAC(test);
 
 
 // this works as expected.
 // run on string "bananas", will find 2 "na", 1 "banana" and 1 "nana".
 
-/*
-    const int due_patterns_count = 3;
-    MEMREF due_patterns[due_patterns_count] =
-    {
-        { "banana", strlen("banana")},
-        { "nana", strlen("nana")},
-        { "na", strlen("na")},
-    };
-
-    map<string, int> due_expected_results =
+    test.id = "due";
+    test.patternsAndResults =
     {
         {"banana", 1},
         {"nana", 1},
@@ -248,9 +168,7 @@ main(int argc, char **argv)
     };
 
 
-    test_AC("due", "bananas", due_patterns, due_patterns_count);
-    */
-
+    testAC(test);
 
     return 0;
 }
