@@ -45,7 +45,7 @@ on_match(int strnum, int textpos, ACData* acData)
     cout << string(45, '.') << endl;
     cout << setw(15) << textpos << setw(15) << strnum << setw(15) << pattv[strnum].ptr << endl;
     puts(text.ptr);
-    for(int i = 0; i < text.len; i++)
+    for(int i = 0; i <= text.len; i++)
     {
         if(i == (textpos - pattv[strnum].len))
         {
@@ -57,7 +57,7 @@ on_match(int strnum, int textpos, ACData* acData)
         }
         else if((textpos - pattv[strnum].len) < i && i < textpos)
         {
-            putchar('-');
+            putchar('_');
         }
         else
         {
@@ -74,23 +74,35 @@ on_match(int strnum, int textpos, ACData* acData)
 void testAC(const Test& test)
 {
     // create the patterns array
-    int patternsCount = test.patternsAndResults.size();
-    MEMREF* patterns = new MEMREF[patternsCount];
-    for(int i = 0; i < patternsCount; i++)
+    int patternsCount = 0;
+    MEMREF* patterns = new MEMREF[test.patternsAndResults.size()];
+    for(int i = 0; i < test.patternsAndResults.size(); i++)
     {
-        patterns[i].ptr = test.patternsAndResults[i].pattern.c_str();
-        patterns[i].len = test.patternsAndResults[i].pattern.length();
+        // if the expected result is 0, I must NOT add the pattern..
+        if(test.patternsAndResults[i].count > 0)
+        {
+            patterns[patternsCount].ptr = test.patternsAndResults[i].pattern.c_str();
+            patterns[patternsCount].len = test.patternsAndResults[i].pattern.length();
+            patternsCount++;
+        }
     }
 
     // build the AC:
     ACISM* ac = acism_create(patterns, patternsCount);
     assert(ac);
-    cout << "-- Testing " << test.id << " ------------------" << endl << endl;
-    cout << test.id << " AC dump: ";
+    cout << "-- Testing " << test.id << " ----------------------------------------------------------------" << endl << endl;
+    cout << "Scanning string: <" << test.textToScan << ">" << endl;
+    cout << "Expected results: " << endl;
+    for(int i = 0; i < test.patternsAndResults.size(); i++)
+    {
+        cout << setw(15) << test.patternsAndResults[i].pattern << ": " <<  setw(5) << test.patternsAndResults[i].count << endl;
+    }
+
+    cout << endl;
     acism_dump(ac, PS_STATS, stdout, patterns);
     cout << test.id << " AC patterns:" << endl;
     for(int i = 0; i < patternsCount; i++)
-        cout << "\t" << i << "\t" << patterns[i].ptr << endl;
+        cout << setw(10) << i << setw(15) << patterns[i].ptr << endl;
 
     // build the memref text to scan
     puts("");
@@ -140,7 +152,7 @@ main(int argc, char **argv)
 // NOTE: fixed by elimination of prune-backlinks
 
     Test test;
-    test.id = "uno";
+    test.id = "banana1";
     test.textToScan = "bananas";
     // uno_test.patterns = uno_patterns;
     // uno_test.patternsAndResults = unoPatternsAndResults;
@@ -151,14 +163,13 @@ main(int argc, char **argv)
         {"ana", 2},
         {"na", 2},
     };
-
     testAC(test);
 
 
 // this works as expected.
 // run on string "bananas", will find 2 "na", 1 "banana" and 1 "nana".
 
-    test.id = "due";
+    test.id = "banana2";
     test.patternsAndResults =
     {
         {"banana", 1},
@@ -166,8 +177,18 @@ main(int argc, char **argv)
         {"ana", 0},
         {"na", 2},
     };
+    testAC(test);
 
+// this will fail
 
+    test.id = "firefox";
+    // test.textToScan = "***/2.----Firefox/2.0";
+    test.textToScan = "/2. Firefox/2.0";
+    test.patternsAndResults =
+    {
+        {"/2.", 2},
+        {"Firefox/2.0", 1},
+    };
     testAC(test);
 
     return 0;
