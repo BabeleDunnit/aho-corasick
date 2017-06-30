@@ -24,7 +24,7 @@
 
 int
 acism_more(ACISM const *psp, MEMREF const text,
-           ACISM_ACTION *cb, void *context, int *statep)
+           ACISM_ACTION *callback, void *context, int *statep)
 {
     char const *cp = text.ptr, *endp = cp + text.len;
     STATE state = *statep;
@@ -82,7 +82,7 @@ acism_more(ACISM const *psp, MEMREF const text,
                         strno = psp->hashv[i].strno;
                     }
 
-                    if ((ret = cb(strno, cp - text.ptr, context)))
+                    if ((ret = callback(strno, cp - text.ptr, context)))
                         goto EXIT;
                 }
 
